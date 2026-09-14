@@ -1,0 +1,11 @@
+{
+  "region": "International",
+  "source_sheet": "International Region",
+  "structure": "status_only",
+  "record_count": 1,
+  "records": [
+    {
+      "status": "No meetup"
+    }
+  ]
+}

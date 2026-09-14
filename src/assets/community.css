@@ -1,0 +1,588 @@
+/* ===========================================================================
+   Community sub-pages — Technical / Cultural / E-Sports
+   ---------------------------------------------------------------------------
+   One design, three signatures.
+
+   These three routes share their markup through src/components/community/*,
+   so their styling cannot live in per-view `<style scoped>` blocks — scoped
+   rules do not cross into a child component. Every rule below is namespaced
+   by `.community-page`, which sits on the root element of each of the three
+   views and nowhere else.
+
+   What changed, and why it matters: this file used to hold three parallel
+   designs. Technical rendered its cards on #111 in Courier New with emerald
+   borders, Cultural and E-Sports each had their own radii, durations and
+   palettes, and roughly two thirds of the file was the same component written
+   three times with different numbers. Nothing about a community's personality
+   requires a different card, a different corner radius or a different
+   transition — those differences were drift, not design.
+
+   So there is now exactly one set of component rules, and a community differs
+   only by the three accent tokens it sets on its variant class. Everything
+   else — surface, border, radius, motion, type — comes from the global system
+   in style.css, which is what makes the four pages read as one site.
+
+   The accents are deliberately desaturated. They sit at roughly the same
+   lightness as the antique gold they live beside, so a page reads as dark
+   editorial with a signature rather than as a coloured theme.
+   =========================================================================== */
+
+.community-page {
+  /* Overridden per variant below. The fallback is the house gold, so a new
+     community page that forgets to set a variant still looks like the site. */
+  --cx: var(--color-gold);
+  --cx-soft: rgba(213, 166, 58, 0.5);
+  --cx-tint: rgba(213, 166, 58, 0.08);
+}
+
+/* Cool and precise. A steel blue, not a cyan — anything brighter reads as a
+   developer-tool landing page rather than a house within an institution. */
+.community-page.community-tech {
+  --cx: #7ba7d9;
+  --cx-soft: rgba(123, 167, 217, 0.42);
+  --cx-tint: rgba(123, 167, 217, 0.08);
+}
+
+/* Warm and expressive. Close enough to the house gold to feel related,
+   distinctly warmer and softer so it does not read as the same accent. */
+.community-page.community-cultural {
+  --cx: #dda15e;
+  --cx-soft: rgba(221, 161, 94, 0.42);
+  --cx-tint: rgba(221, 161, 94, 0.09);
+}
+
+/* Energetic and competitive. A muted crimson — restrained on purpose, since
+   a saturated red on near-black is the fastest way to look like a gaming
+   template rather than a student house. */
+.community-page.community-esports {
+  --cx: #c96f6f;
+  --cx-soft: rgba(201, 111, 111, 0.42);
+  --cx-tint: rgba(201, 111, 111, 0.09);
+}
+
+/* ── Section shell ─────────────────────────────────────────────────────── */
+
+.community-page .section-header {
+  max-width: 46rem;
+  margin-bottom: 3rem;
+}
+
+/* The accent shows up in the label rule and the highlighted word, and
+   essentially nowhere else at this scale. */
+.community-page .section-tag {
+  color: var(--cx);
+}
+
+.community-page .tg {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--cx);
+}
+
+/* ── Cards: one surface, one border, one motion, for every card type ───── */
+
+.community-page .event-card,
+.community-page .past-event-card,
+.community-page .winner-card,
+.community-page .team-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rad2);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--duration-card) var(--ease-editorial),
+    box-shadow var(--duration-card) var(--ease-editorial),
+    transform var(--duration-card) var(--ease-editorial);
+}
+
+.community-page .event-card:hover,
+.community-page .past-event-card:hover,
+.community-page .winner-card:hover,
+.community-page .team-card:hover {
+  transform: translateY(-4px);
+  /* The accent edge is the only thing that says which community you are in. */
+  border-color: var(--cx-soft);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── Upcoming events ───────────────────────────────────────────────────── */
+
+.community-page .events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.community-page .event-img-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.community-page .event-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--duration-card) var(--ease-editorial);
+}
+
+.community-page .event-card:hover .event-img {
+  transform: scale(1.04);
+}
+
+.community-page .event-body,
+.community-page .event-info {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.6rem;
+}
+
+/* E-Sports upcoming cards lead with a date block instead of artwork. */
+.community-page .event-date-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--cx-tint);
+}
+
+.community-page .event-day {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cx);
+}
+
+.community-page .event-month {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.community-page .event-type-tag,
+.community-page .winner-event-tag {
+  align-self: flex-start;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cx);
+  border: 1px solid var(--cx-soft);
+  border-radius: 99px;
+  padding: 0.2rem 0.6rem;
+}
+
+.community-page .event-title,
+.community-page .past-event-title,
+.community-page .winner-event-title {
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.community-page .event-desc,
+.community-page .past-event-desc {
+  font-size: 0.85rem;
+  color: var(--text2);
+  line-height: 1.7;
+}
+
+.community-page .event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  font-size: 0.76rem;
+  color: var(--text3);
+}
+
+.community-page .event-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* ── Past events ───────────────────────────────────────────────────────── */
+
+.community-page .past-events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.community-page .past-event-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--color-bg-black);
+}
+
+/* A blurred copy of the artwork fills the frame behind a `contain` fit, so
+   letterboxed posters sit on their own colour instead of black bars. */
+.community-page .past-event-img-blur {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(18px) saturate(0.7) brightness(0.4);
+  transform: scale(1.15);
+}
+
+.community-page .past-event-img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  transition: transform var(--duration-card) var(--ease-editorial);
+}
+
+.community-page .past-event-card:hover .past-event-img {
+  transform: scale(1.04);
+}
+
+.community-page .past-event-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 2rem 1rem 0.75rem;
+  background: linear-gradient(to top, rgba(5, 6, 5, 0.92), rgba(5, 6, 5, 0));
+}
+
+.community-page .past-event-date {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+
+.community-page .past-event-body {
+  padding: 1.4rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: 1;
+}
+
+.community-page .past-event-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+  font-size: 0.76rem;
+  color: var(--text3);
+}
+
+/* ── Winners ───────────────────────────────────────────────────────────── */
+
+.community-page .winners-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.community-page .winner-card {
+  padding: 1.5rem;
+  gap: 1rem;
+}
+
+.community-page .winner-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.community-page .winners-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+}
+
+.community-page .winner-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.community-page .winner-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--cx-soft);
+  background: var(--cx-tint);
+  color: var(--cx);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.community-page .winner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.community-page .winner-name {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.community-page .winner-email {
+  font-size: 0.72rem;
+  color: var(--text3);
+  overflow-wrap: anywhere;
+}
+
+.community-page .no-winner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text3);
+}
+
+.community-page .no-winner-icon {
+  color: var(--cx);
+}
+
+/* ── Team ──────────────────────────────────────────────────────────────── */
+
+/* auto-fit rather than auto-fill: a row that cannot be filled stretches its
+   cards to share the width instead of leaving a phantom column, which is what
+   used to strand a lone fifth card looking like a mistake. */
+.community-page .team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1.5rem;
+}
+
+.community-page .team-photo-wrap {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--color-card-raised);
+  flex-shrink: 0;
+}
+
+.community-page .team-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  transition: transform var(--duration-card) var(--ease-editorial);
+}
+
+.community-page .team-card:hover .team-photo {
+  transform: scale(1.04);
+}
+
+/* The no-photo state. Not a broken image and not a stock face: the member's
+   initials, set in the display face on the card's own surface. It is a
+   deliberate design, so a card without a portrait still looks finished. */
+.community-page .team-monogram {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 120% at 50% 0%, var(--cx-tint) 0%, rgba(5, 6, 5, 0) 70%),
+    var(--color-card-raised);
+}
+
+.community-page .team-monogram span {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--cx);
+  opacity: 0.85;
+}
+
+.community-page .team-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  flex: 1;
+}
+
+.community-page .team-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.community-page .team-role {
+  font-size: 0.78rem;
+  color: var(--cx);
+  letter-spacing: 0.02em;
+}
+
+.community-page .team-level {
+  font-size: 0.72rem;
+  color: var(--text3);
+}
+
+/* Unboxed marks, the same treatment the footer uses — no square chips. */
+.community-page .team-socials {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  /* auto, not a fixed gap: a name that wraps to two lines must not push its
+     row of marks below the neighbouring cards'. */
+  margin-top: auto;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.community-page .team-socials a {
+  display: inline-flex;
+  color: var(--text3);
+  transition:
+    color var(--duration-link) var(--ease-editorial),
+    transform var(--duration-link) var(--ease-editorial);
+}
+
+.community-page .team-socials a:hover {
+  color: var(--cx);
+  transform: translateY(-2px);
+}
+
+.community-page .team-socials a:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* ── Empty states ──────────────────────────────────────────────────────── */
+
+.community-page .community-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 3.5rem 1rem;
+  text-align: center;
+  color: var(--text3);
+  font-size: 0.95rem;
+}
+
+.community-page .community-empty svg {
+  color: var(--cx);
+}
+
+/* ── Closing CTA ───────────────────────────────────────────────────────── */
+
+.community-page .community-cta {
+  max-width: 44rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.community-page .community-cta h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  margin-bottom: 1rem;
+}
+
+.community-page .community-cta p {
+  color: var(--text2);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  margin-bottom: 2rem;
+}
+
+.community-page .community-cta-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* The one place a community accent touches a button: the outline tier borrows
+   the accent for its edge. The fill, the motion, the press and the arrow all
+   still come from the global system. */
+.community-page .btn--outline {
+  border-color: var(--cx-soft);
+  color: var(--text);
+}
+
+.community-page .btn--outline:hover {
+  border-color: var(--cx);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .community-page .section-header {
+    margin-bottom: 2rem;
+  }
+
+  .community-page .events-grid,
+  .community-page .past-events-grid,
+  .community-page .winners-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Two portraits per row reads better than one giant card per screen. */
+  .community-page .team-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .community-page .team-body {
+    padding: 0.9rem 1rem 1rem;
+  }
+
+  .community-page .community-cta-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .community-page .team-grid {
+    grid-template-columns: 1fr;
+  }
+}

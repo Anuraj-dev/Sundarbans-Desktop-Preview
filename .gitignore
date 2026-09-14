@@ -1,0 +1,27 @@
+node_modules
+project_files
+dist/
+scratch/
+.env
+.env.local
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Ignore raw CSV exports and manifest CSVs
+**/*.csv
+src/views/meetups/region_exports_json_and_csv/csv/
+
+# Local agent/tool scratch and deploy state
+.claude/
+.grok/
+.vercel/
+tmp/
+Teams/
+prototypes/
+
+# Local QA harness scratch (kept out of the repo; regenerate as needed)
+qa-*.mjs
