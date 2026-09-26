@@ -1,28 +1,29 @@
 <template>
   <!-- Tone A. The whole point of this section is that it is the first thing
-       under the hero: search, level, subject, type, results — in that order,
-       top to bottom, with nothing to scroll past. -->
+       under the hero — and now that it is a guided stepper, the visitor is
+       never facing nineteen subjects at once. Branch → Level → Subject →
+       Resources, one step at a time; search is folded into the subject step
+       instead of sitting above everything. -->
   <section class="section tone-a rs" id="resource-browser">
     <div class="container">
-      <!-- ── 1. SEARCH ─────────────────────────────────────────────── -->
-      <div class="rb-search">
-        <label class="rb-search-label" for="rb-search-input">Search resources</label>
+      <div class="rb-global-search">
+        <label class="rb-global-label" for="rb-global-search">Search resources</label>
         <div class="rb-search-field">
           <Search class="rb-search-icon" :size="17" :stroke-width="1.9" aria-hidden="true" />
           <input
-            id="rb-search-input"
-            v-model="search"
+            id="rb-global-search"
+            v-model="globalSearch"
             type="search"
             class="form-input rb-search-input"
             placeholder="Search subjects, notes, PYQs…"
             autocomplete="off"
           />
           <button
-            v-if="search"
+            v-if="globalSearch"
             type="button"
             class="rb-search-clear"
             aria-label="Clear search"
-            @click="search = ''"
+            @click="globalSearch = ''"
           >
             <X :size="15" :stroke-width="2" />
           </button>
@@ -32,376 +33,383 @@
         </p>
       </div>
 
-      <!-- ── 2. LEVEL ──────────────────────────────────────────────── -->
-      <div class="rb-block">
-        <h2 class="rb-block-title" id="rb-level-label">Choose a level</h2>
-        <div class="rb-chips" role="group" aria-labelledby="rb-level-label">
-          <button
-            v-for="level in levelMeta"
-            :key="level.key"
-            type="button"
-            class="sel rb-level"
-            :aria-pressed="currentLevel === level.key"
-            @click="toggleLevel(level.key)"
-          >
-            <component :is="level.icon" :size="16" :stroke-width="1.8" aria-hidden="true" />
-            {{ level.title }}
-            <span class="rb-chip-count">{{ (scData[level.key] || []).length }}</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- ── 3. SUBJECT ────────────────────────────────────────────── -->
-      <div class="rb-block">
-        <div class="rb-block-head">
-          <h2 class="rb-block-title" id="rb-subject-label">
-            {{ currentLevel ? `${currentLevelLabel} subjects` : 'Subjects' }}
-          </h2>
-          <p class="rb-block-meta" role="status" aria-live="polite">{{ subjectSummary }}</p>
-        </div>
-
-        <div
-          v-if="visibleSubjects.length"
-          class="rb-subject-grid"
-          role="group"
-          aria-labelledby="rb-subject-label"
-        >
-          <button
-            v-for="subject in visibleSubjects"
-            :key="subject.levelKey + subject.code"
-            type="button"
-            class="rb-subject"
-            :aria-pressed="isCurrentSubject(subject)"
-            @click="selectSubject(subject)"
-          >
-            <span class="rb-subject-code">{{ subject.code }}</span>
-            <span class="rb-subject-name">{{ subject.subject }}</span>
-            <span v-if="!currentLevel" class="rb-subject-level">{{
-              levelLabel(subject.levelKey)
-            }}</span>
-          </button>
-        </div>
-
-        <p v-else-if="query" class="rb-note">
-          No subject matches “{{ query }}”.
-          <button type="button" class="btn btn--text" @click="clearAll">Clear search</button>
-        </p>
-
-        <p v-else class="rb-note rb-note--rest">
-          Pick Foundation, Diploma or BS Degree above, or type in the search box to look across all
-          three at once.
-        </p>
-      </div>
-
-      <!-- ── 4. TYPE + 5. RESULTS ──────────────────────────────────── -->
-      <div class="rb-block">
-        <template v-if="currentSubject">
-          <div class="rb-block-head">
-            <div>
-              <h2 class="rb-block-title">{{ currentSubject.subject }}</h2>
-              <p class="rb-subject-desc">{{ currentSubject.description }}</p>
-            </div>
-            <button type="button" class="btn btn--text" @click="clearSubject">
-              Clear selection
-            </button>
+      <nav class="rb-stepper" aria-label="Browse resources">
+        <div class="rb-steps-wrap">
+          <div class="rb-progress" aria-hidden="true">
+            <span class="rb-progress-fill" :style="{ width: progressPct + '%' }"></span>
           </div>
-
-          <div class="rb-chips rb-types" role="group" aria-label="Resource type">
-            <button
-              v-for="type in typeMeta"
-              :key="type.key"
-              type="button"
-              class="sel"
-              :aria-pressed="resourceType === type.key"
-              @click="setResourceType(type.key)"
-            >
-              <component :is="type.icon" :size="15" :stroke-width="1.9" aria-hidden="true" />
-              {{ type.label }}
-              <span class="rb-chip-count">{{ typeCounts[type.key] }}</span>
-            </button>
-          </div>
-
-          <div class="rb-results">
-            <template v-if="resultGroups.length">
-              <section
-                v-for="group in resultGroups"
-                :key="group.label"
-                class="rb-group"
-                :class="{ 'rb-group--featured': group.featured }"
+          <ol class="rb-steps">
+            <li v-for="s in steps" :key="s.n">
+              <button
+                v-if="s.n <= step"
+                type="button"
+                class="rb-step"
+                :class="{ 'rb-step--active': s.n === step, 'rb-step--done': s.n < step }"
+                :aria-current="s.n === step ? 'step' : undefined"
+                @click="goToStep(s.n)"
               >
-                <h3 v-if="group.label" class="rb-group-label">
-                  <component
-                    :is="group.icon"
-                    v-if="group.icon"
-                    :size="14"
-                    :stroke-width="1.9"
-                    aria-hidden="true"
-                  />
-                  {{ group.label }}
-                  <span class="rb-group-count">{{ group.items.length }}</span>
-                </h3>
-                <ul class="rb-list">
-                  <li v-for="item in shownItems(group)" :key="item.key">
-                    <a class="rb-item" :href="item.link" target="_blank" rel="noopener noreferrer">
-                      <span class="rb-item-main">
-                        <span class="rb-item-title">{{ item.title }}</span>
-                        <span class="rb-item-meta">
-                          <span class="rb-item-type">{{ item.typeLabel }}</span>
-                          <span v-if="item.badge" class="rb-item-badge">{{ item.badge }}</span>
-                        </span>
+                <span class="rb-step-num">{{ s.n }}</span>
+                <span class="rb-step-body">
+                  <span class="rb-step-label">{{ s.label }}</span>
+                  <span v-if="s.n < step && stepSummary[s.n]" class="rb-step-value">{{
+                    stepSummary[s.n]
+                  }}</span>
+                </span>
+              </button>
+              <span v-else class="rb-step rb-step--locked" aria-hidden="true">
+                <span class="rb-step-num">{{ s.n }}</span>
+                <span class="rb-step-body">
+                  <span class="rb-step-label">{{ s.label }}</span>
+                </span>
+              </span>
+            </li>
+          </ol>
+        </div>
+        <button v-if="branch" type="button" class="btn btn--text rb-reset" @click="resetAll">
+          Start over
+        </button>
+      </nav>
+
+      <div class="rb-stage">
+        <!-- Global search results: replaces the stepper while a query is active,
+             so the browse flow and the search-across-everything flow never mix. -->
+        <div v-if="hasGlobalQuery" key="global" class="rb-step-pane rb-global">
+          <h2 class="rb-step-title" id="rb-head-global" tabindex="-1">
+            Results for “{{ globalSearch }}”
+          </h2>
+          <p class="rb-step-sub">
+            Matching subjects, notes, lectures and past papers — across every branch and level.
+          </p>
+
+          <template v-if="globalGroups.length">
+            <section v-for="(g, gi) in globalGroups" :key="g.subject.key" class="rb-global-group">
+              <h3 class="rb-global-label">
+                <span>
+                  {{ g.label }}
+                  <span class="rb-group-count">{{ g.items.length }}</span>
+                </span>
+                <button type="button" class="btn btn--text" @click="openGlobalSubject(g.subject)">
+                  Open in browser
+                </button>
+              </h3>
+              <ul class="rb-global-list">
+                <li v-for="(item, ii) in g.items" :key="item.key">
+                  <a
+                    class="rb-global-item rb-card-enter"
+                    :style="{ animationDelay: gi * 60 + ii * 45 + 'ms' }"
+                    :href="item.link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span class="rb-global-item-main">
+                      <span class="rb-global-item-title">{{ item.title }}</span>
+                      <span class="rb-global-item-meta">
+                        <span class="rb-global-item-type">{{ item.typeLabel }}</span>
+                        <span v-if="item.badge" class="rb-global-item-badge">{{ item.badge }}</span>
                       </span>
-                      <span class="rb-item-cta">
-                        {{ item.cta }}
-                        <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
-                      </span>
-                    </a>
-                  </li>
-                </ul>
+                    </span>
+                    <span class="rb-global-item-cta">
+                      {{ item.cta }}
+                      <ArrowRight :size="14" :stroke-width="2" aria-hidden="true" />
+                    </span>
+                  </a>
+                </li>
+              </ul>
+            </section>
+          </template>
+
+          <p v-else class="rb-empty">
+            <FileSearch :size="26" :stroke-width="1.6" aria-hidden="true" />
+            <span>No subjects or resources match “{{ globalSearch }}”.</span>
+            <button type="button" class="btn btn--outline btn--sm" @click="globalSearch = ''">
+              Clear search
+            </button>
+          </p>
+        </div>
+
+        <Transition v-else name="rb-step" mode="out-in">
+          <!-- ── 1. BRANCH ─────────────────────────────────────────── -->
+          <div v-if="step === 1" key="1" class="rb-step-pane">
+            <h2 class="rb-step-title" id="rb-head-1">Choose your branch</h2>
+            <p class="rb-step-sub">
+              Each programme has its own subjects, so start with the branch you are enrolled in.
+            </p>
+            <div class="rb-branch-grid" role="group" aria-labelledby="rb-head-1">
+              <button
+                v-for="(b, bi) in BRANCHES"
+                :key="b.key"
+                type="button"
+                class="rb-branch rb-card-enter"
+                :class="{ 'rb-branch--selected': branch === b.key }"
+                :style="{ animationDelay: bi * 45 + 'ms' }"
+                :aria-pressed="branch === b.key"
+                @click="chooseBranch(b.key)"
+              >
+                <component
+                  :is="branchIcons[b.key]"
+                  class="rb-branch-icon"
+                  :size="20"
+                  :stroke-width="1.7"
+                  aria-hidden="true"
+                />
+                <span class="rb-branch-code">{{ b.short }}</span>
+                <span class="rb-branch-name">{{ b.name }}</span>
+                <span class="rb-branch-count">{{ branchSubjectCount(b.key) }} subjects</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ── 2. LEVEL ──────────────────────────────────────────── -->
+          <div v-else-if="step === 2" key="2" class="rb-step-pane">
+            <h2 class="rb-step-title" id="rb-head-2">Choose your level</h2>
+            <p class="rb-step-sub">
+              {{ currentBranch.name }} runs three levels — pick where you are.
+            </p>
+            <div class="rb-level-grid" role="group" aria-labelledby="rb-head-2">
+              <button
+                v-for="(l, li) in LEVELS"
+                :key="l.key"
+                type="button"
+                class="rb-level rb-card-enter"
+                :class="{ 'rb-level--selected': level === l.key }"
+                :style="{ animationDelay: li * 45 + 'ms' }"
+                :aria-pressed="level === l.key"
+                @click="chooseLevel(l.key)"
+              >
+                <component
+                  :is="levelIcons[l.key]"
+                  class="rb-level-icon"
+                  :size="20"
+                  :stroke-width="1.7"
+                  aria-hidden="true"
+                />
+                <span class="rb-level-name">{{ l.title }}</span>
+                <span class="rb-level-count">{{ levelStat(l.key) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ── 3. SUBJECT ────────────────────────────────────────── -->
+          <div v-else-if="step === 3" key="3" class="rb-step-pane">
+            <h2 class="rb-step-title" id="rb-head-3">Choose a subject</h2>
+            <p class="rb-step-sub">
+              {{ currentLevel.title }} · {{ currentBranch.name }} — search or pick below.
+            </p>
+
+            <div class="rb-subject-search">
+              <div class="rb-search-field">
+                <Search class="rb-search-icon" :size="17" :stroke-width="1.9" aria-hidden="true" />
+                <input
+                  id="rb-subject-search"
+                  v-model="search"
+                  type="search"
+                  class="form-input rb-search-input"
+                  placeholder="Search subjects or notes…"
+                  autocomplete="off"
+                />
                 <button
-                  v-if="group.items.length > PREVIEW_COUNT"
+                  v-if="search"
                   type="button"
-                  class="btn btn--text rb-more"
-                  @click="toggleGroup(group.label)"
+                  class="rb-search-clear"
+                  aria-label="Clear search"
+                  @click="search = ''"
                 >
-                  {{
-                    expandedGroups[group.label] ? 'Show fewer' : `Show all ${group.items.length}`
-                  }}
-                  <ChevronDown
-                    class="rb-more-chevron"
-                    :class="{ 'rb-more-chevron--up': expandedGroups[group.label] }"
-                    :size="14"
+                  <X :size="15" :stroke-width="2" />
+                </button>
+              </div>
+              <p class="rb-search-hint">
+                Search also matches notes and past papers inside a subject.
+              </p>
+            </div>
+
+            <div
+              v-if="visibleCore.length"
+              class="rb-subject-grid"
+              role="group"
+              aria-labelledby="rb-head-3"
+            >
+              <button
+                v-for="(subject, si) in visibleCore"
+                :key="subjectKey(subject)"
+                type="button"
+                class="rb-subject rb-card-enter"
+                :style="{ animationDelay: si * 45 + 'ms' }"
+                :aria-pressed="isSelected(subject)"
+                @click="selectSubject(subject)"
+              >
+                <span class="rb-subject-code">{{ subject.code }}</span>
+                <span class="rb-subject-name">{{ subject.name }}</span>
+                <ChevronRight
+                  class="rb-subject-go"
+                  :size="15"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+
+            <div v-for="group in visibleElectiveGroups" :key="group.label" class="rb-elective">
+              <h3 class="rb-elective-label">
+                {{ group.label }}
+                <span v-if="group.subjects.length" class="rb-group-count">{{
+                  group.subjects.length
+                }}</span>
+              </h3>
+              <div
+                v-if="group.subjects.length"
+                class="rb-subject-grid"
+                role="group"
+                :aria-label="`${group.label} subjects`"
+              >
+                <button
+                  v-for="(sub, si) in group.subjects"
+                  :key="subjectKey(sub)"
+                  type="button"
+                  class="rb-subject rb-card-enter"
+                  :style="{ animationDelay: si * 45 + 'ms' }"
+                  :class="{ 'rb-subject--elective': !sub.code }"
+                  :aria-pressed="isSelected(sub)"
+                  @click="selectSubject(sub)"
+                >
+                  <span v-if="sub.code" class="rb-subject-code">{{ sub.code }}</span>
+                  <span class="rb-subject-name">{{ sub.name }}</span>
+                  <ChevronRight
+                    class="rb-subject-go"
+                    :size="15"
                     :stroke-width="2"
                     aria-hidden="true"
                   />
                 </button>
-              </section>
-            </template>
+              </div>
+              <p v-else class="rb-note rb-note--rest">{{ group.note }}</p>
+            </div>
 
-            <p v-else class="rb-empty">
-              <FileSearch :size="26" :stroke-width="1.6" aria-hidden="true" />
-              <span>
-                No {{ resourceType === 'all' ? 'resources' : activeTypeLabel.toLowerCase() }} here
-                yet<template v-if="search"> for “{{ search }}”</template>.
-              </span>
-              <button
-                v-if="resourceType !== 'all'"
-                type="button"
-                class="btn btn--outline btn--sm"
-                @click="setResourceType('all')"
-              >
-                Show everything for this subject
-              </button>
+            <p v-if="query && !totalVisibleSubjects" class="rb-note">
+              No subject matches “{{ search }}”.
+              <button type="button" class="btn btn--text" @click="search = ''">Clear search</button>
             </p>
           </div>
-        </template>
 
-        <!-- Concise empty state — a sentence and a way forward, not a
-             580px-tall bordered box with an icon in the middle of it. -->
-        <p v-else class="rb-empty rb-empty--start">
-          <BookOpen :size="26" :stroke-width="1.6" aria-hidden="true" />
-          <span>Pick a level above — or search — to browse notes, lectures and past papers.</span>
-        </p>
+          <!-- ── 4. RESOURCES ──────────────────────────────────────── -->
+          <div v-else-if="step === 4" key="4" class="rb-step-pane">
+            <h2 class="rb-step-title" id="rb-head-4">Resources</h2>
+            <template v-if="subject">
+              <ResourceResults
+                :subject="subject"
+                :search="search"
+                :resource-type="resourceType"
+                :expanded-groups="expandedGroups"
+                :preview-count="PREVIEW_COUNT"
+                @update:resource-type="setResourceType"
+                @toggle-group="toggleGroup"
+                @clear-subject="step = 3"
+              />
+            </template>
+            <p v-else class="rb-empty rb-empty--start">
+              <BookOpen :size="26" :stroke-width="1.6" aria-hidden="true" />
+              <span>Choose a subject above to see its notes, lectures and past papers.</span>
+            </p>
+          </div>
+        </Transition>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import {
+  Search,
+  X,
+  BookOpen,
   Sprout,
   Ruler,
   GraduationCap,
-  BookOpen,
-  PlayCircle,
-  NotebookPen,
-  FileText,
-  FolderOpen,
-  Calendar,
-  Layers,
-  User,
-  Search,
+  Database,
+  CircuitBoard,
+  Rocket,
+  Briefcase,
+  ChevronRight,
   FileSearch,
   ArrowRight,
-  ChevronDown,
-  X,
 } from 'lucide-vue-next';
 
-import scData from '../../data/scData_generated.js';
+import {
+  BRANCHES,
+  LEVELS,
+  allSubjectsFor,
+  branchSubjectCount,
+  subjectKey,
+  subjectsFor,
+} from '../../data/study/curriculum.js';
+import { resourcesFor } from '../../data/study/resources.js';
+import ResourceResults from './ResourceResults.vue';
 
-// Shared with the doubts board, so the view owns it.
-const search = defineModel('search', { type: String, default: '' });
-
-/** Trimmed, lower-cased query — every filter below reads this, not `search`. */
-const query = computed(() => search.value.trim().toLowerCase());
-
-const levelMeta = [
-  { key: 'foundation', icon: Sprout, title: 'Foundation' },
-  { key: 'diploma', icon: Ruler, title: 'Diploma' },
-  { key: 'bs', icon: GraduationCap, title: 'BS Degree' },
+const steps = [
+  { n: 1, label: 'Branch' },
+  { n: 2, label: 'Level' },
+  { n: 3, label: 'Subject' },
+  { n: 4, label: 'Resources' },
 ];
 
-// The three types the data actually carries. There is deliberately no
-// "Assignments" or "Practice" filter: no subject in scData has either, and an
-// always-empty filter is worse than no filter.
-const typeMeta = [
-  { key: 'all', icon: Layers, label: 'All', cta: 'Open' },
-  { key: 'lectures', icon: PlayCircle, label: 'Lectures', cta: 'Watch' },
-  { key: 'notes', icon: NotebookPen, label: 'Notes', cta: 'View notes' },
-  { key: 'pyq', icon: FileText, label: 'PYQs', cta: 'Open paper' },
-];
+const branchIcons = { ds: Database, es: CircuitBoard, ae: Rocket, mg: Briefcase };
+const levelIcons = { foundation: Sprout, diploma: Ruler, degree: GraduationCap };
 
 const RESOURCE_TYPES = ['lectures', 'notes', 'pyq'];
 
-/**
- * A group shows this many rows before it offers to open.
- *
- * Without a cap, "All" on Maths 1 is 121 rows — roughly eight screens that the
- * reader has to scroll past before the doubts board even starts. Six is enough
- * to show what a group holds and judge whether it is the right one.
- */
+/** A group shows this many rows before it offers to open. */
 const PREVIEW_COUNT = 6;
-const expandedGroups = ref({});
 
-const currentLevel = ref(null);
-const currentSubjectCode = ref(null);
+// ── Selection state, one value per step ──────────────────────────────
+const step = ref(1);
+const branch = ref(null);
+const level = ref(null);
+const subject = ref(null);
 const resourceType = ref('all');
+const expandedGroups = ref({});
+const search = ref('');
+const globalSearch = ref('');
 
-// Curated Drive folders that sit alongside the per-item links. Unchanged.
-const driveLinks = {
-  foundationPyq: 'https://drive.google.com/drive/folders/1Fq3vpXmmN3moEFa9TdBqkBfkMfjaPyh-',
-  diplomaPyq: 'https://drive.google.com/drive/folders/1FnI9uXbnSGqMBRLWyWPD5839R9xXjS5I',
-  notes: {
-    BSMA1001: 'https://drive.google.com/drive/folders/1SuT80Mt_1mhgeDb8_PF5nE2f626wI-5C',
-    BSMA1002: 'https://drive.google.com/drive/folders/1TVvNKumzi1tD5rRPR4B_SHfR6KyHXgkv',
-    BSHS1001: 'https://drive.google.com/drive/folders/1TJ_i7aNmcKBk_DAA7EmzCKTJ5fEBYWOD',
-    BSCS1001: 'https://drive.google.com/drive/folders/15BrCrZ0cBxcOOhDFwavZX9WJnwXu149O',
-    BSMA1003: 'https://drive.google.com/drive/folders/1T0Vk5wWuGlhKhCv1qGYnS7T5_mmceeFy',
-    BSMA1004: 'https://drive.google.com/drive/folders/1TNS9WHBWUKInU2Jey23DRwzNySeRjB3O',
-    BSHS1002: 'https://drive.google.com/drive/folders/1z68X9eGokOfrzlaCKV3v16bSpgInneKd',
-    BSCS1002: 'https://drive.google.com/drive/folders/1O7w1hXO6d0uptWs1U4BCMGVEdfSDxNWo',
-    BSCS2001: 'https://drive.google.com/drive/folders/1PtqrInqJV0ZcZbis2hFndmOM08lMmoS_',
-    BSCS2005: 'https://drive.google.com/drive/folders/1Q-FPcyrurSml35qHizU6An3_c7f8_xie',
-    BSCS2003: 'https://drive.google.com/drive/folders/1MbGGvTyRM0-27le2He5TKdhw8HSPfC0j',
-    BSCS2006: 'https://drive.google.com/drive/folders/1Pl7g4i6e9HRR5ZQLYaJlbj6BQ-16ZtDK',
-    BSCS2002: 'https://drive.google.com/drive/folders/1Pn7Zaa8tfXbXIBbiX9WYg_WcfIVMHCdG',
-    BSSE2001: 'https://drive.google.com/drive/folders/1PsMUC0fAMCNVB5HVgZ_TZQC3CWhT5K3g',
-    BSMS2002: 'https://drive.google.com/drive/folders/1UTximp3FWwJV6_5nBmJlISPIbzvMu8s0',
-    BSMS2001: 'https://drive.google.com/drive/folders/1UIjX4MUeJBQnSJqRnO5XI8SFm50XDPml',
-    BSCS2004: 'https://drive.google.com/drive/folders/1ODZY3E2PcsaFrzIHPo5lUhQZaBszZxxS',
-    BSCS2008: 'https://drive.google.com/drive/folders/1UIVGGZYEldx98djyOI6aR18ec-07Qies',
-    BSCS2007: 'https://drive.google.com/drive/folders/1UFpj7Lauj4l_YvA8U6tR0dqubv4K0gwy',
-    BSSE2002: 'https://drive.google.com/drive/folders/1UK3pOkccniwBm1-YfpQgjrEfXFMrOtVy',
-  },
+const currentBranch = computed(() => BRANCHES.find((b) => b.key === branch.value) || null);
+const currentLevel = computed(() => LEVELS.find((l) => l.key === level.value) || null);
+
+const query = computed(() => search.value.trim().toLowerCase());
+const hasQuery = computed(() => query.value.length > 0);
+
+// ── Global resource search ──────────────────────────────────────────
+// Independent of the stepper: typing searches the *whole catalogue* — every
+// branch × level — matching subject names/codes and the titles of every note,
+// lecture and past paper. A live query swaps the stage for the results below.
+const hasGlobalQuery = computed(() => globalSearch.value.trim().length > 0);
+
+const GLOBAL_TYPE_META = {
+  lectures: { label: 'Lectures', cta: 'Watch' },
+  notes: { label: 'Notes', cta: 'View notes' },
+  pyq: { label: 'PYQs', cta: 'Open paper' },
 };
 
-const LEVEL_LABELS = { foundation: 'Foundation', diploma: 'Diploma', bs: 'BS Degree' };
-const levelLabel = (key) => LEVEL_LABELS[key] || '';
-const currentLevelLabel = computed(() => levelLabel(currentLevel.value));
-
-// ── Title parsing (unchanged) ───────────────────────────────────────────
-function parseAuthor(title) {
-  const match = String(title).match(/\(by\s+(.+?)\)\s*$/i);
-  return match ? match[1].trim() : 'Unknown';
-}
-
-function cleanTitle(title) {
-  let cleaned = String(title || '')
-    .replace(/\s*\(by\s+.+?\)\s*$/i, '')
-    .trim();
-  cleaned = cleaned.replace(/^[\s\-–:]+/, '');
-  return cleaned || String(title || 'Untitled');
-}
-
-function parsePYQYear(title) {
-  const monthYear = String(title).match(
-    /(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i
-  );
-  if (monthYear) return monthYear[2];
-  const yearOnly = String(title).match(/\b(20\d{2})\b/);
-  return yearOnly ? yearOnly[1] : 'Other';
-}
-
-// ── Subjects ────────────────────────────────────────────────────────────
-function subjectMatchesSearch(subject, q) {
-  if (subject.subject.toLowerCase().includes(q)) return true;
-  if (
-    String(subject.code || '')
-      .toLowerCase()
-      .includes(q)
-  )
-    return true;
-  const resources = subject.resources || {};
-  return RESOURCE_TYPES.some((type) =>
-    (resources[type] || []).some((item) =>
-      String(item.title || '')
-        .toLowerCase()
-        .includes(q)
-    )
-  );
-}
-
-const allSubjects = computed(() =>
-  Object.keys(LEVEL_LABELS).flatMap((lvl) =>
-    (scData[lvl] || []).map((sub) => ({ ...sub, levelKey: lvl }))
-  )
-);
-
-// A query with no level chosen searches the whole catalogue; once a level is
-// chosen it scopes to that level. Either way the subject grid is the answer.
-const visibleSubjects = computed(() => {
-  const q = query.value;
-  const base = currentLevel.value
-    ? allSubjects.value.filter((s) => s.levelKey === currentLevel.value)
-    : q
-      ? allSubjects.value
-      : [];
-  if (!q) return base;
-  return base.filter((subject) => subjectMatchesSearch(subject, q));
-});
-
-const subjectSummary = computed(() => {
-  const n = visibleSubjects.value.length;
-  if (!currentLevel.value && !query.value) return 'Choose a level, or search';
-  return `${n} ${n === 1 ? 'subject' : 'subjects'}`;
-});
-
-const currentSubject = computed(
-  () => allSubjects.value.find((s) => s.code === currentSubjectCode.value) || null
-);
-
-const isCurrentSubject = (subject) => subject.code === currentSubjectCode.value;
-
-// ── Resources ───────────────────────────────────────────────────────────
-function matchingItems(type) {
-  const source = currentSubject.value?.resources?.[type] || [];
-  const q = query.value;
-  if (!q) return source;
-  return source.filter((item) =>
-    String(item.title || '')
-      .toLowerCase()
-      .includes(q)
-  );
-}
-
-const typeCounts = computed(() => {
-  const counts = { all: 0 };
-  RESOURCE_TYPES.forEach((type) => {
-    counts[type] = matchingItems(type).length;
-    counts.all += counts[type];
+// Every selectable subject in the catalogue, deduped by key, tagged with the
+// branch and level it belongs to so a result can step straight into it.
+const globalCatalog = computed(() => {
+  const seen = new Map();
+  BRANCHES.forEach((branchKey) => {
+    LEVELS.forEach((levelKey) => {
+      allSubjectsFor(branchKey, levelKey.key).forEach((subject) => {
+        const key = subjectKey(subject);
+        if (!seen.has(key)) {
+          seen.set(key, { ...subject, key, branchKey, levelKey: levelKey.key });
+        }
+      });
+    });
   });
-  return counts;
+  return Array.from(seen.values());
 });
 
-const activeTypeLabel = computed(
-  () => typeMeta.find((t) => t.key === resourceType.value)?.label || 'Resources'
-);
-
-function decorate(item, type, index) {
-  const meta = typeMeta.find((t) => t.key === type);
+function decorateGlobalItem(item, type, index, subjectKey) {
+  const meta = GLOBAL_TYPE_META[type];
   return {
-    key: `${type}-${index}-${item.link}`,
-    title: cleanTitle(item.title),
+    key: `${subjectKey}-${type}-${index}-${item.link}`,
+    title: item.title,
     link: item.link,
     badge: item.badge,
     typeLabel: meta.label,
@@ -409,154 +417,168 @@ function decorate(item, type, index) {
   };
 }
 
-/**
- * One flat, grouped list — no accordions and no cards inside cards.
- *
- * Notes stay grouped by contributor and PYQs by year, because that grouping is
- * information rather than decoration, but a group is now a labelled run of
- * rows rather than a collapsible panel the reader has to open before they can
- * see whether it holds anything. The curated Drive folders lead, flagged, as
- * they did before.
- */
-const resultGroups = computed(() => {
-  if (!currentSubject.value) return [];
-  const type = resourceType.value;
+const globalGroups = computed(() => {
+  const q = globalSearch.value.trim().toLowerCase();
+  if (!q) return [];
   const groups = [];
-
-  if (type === 'all') {
-    RESOURCE_TYPES.forEach((t) => {
-      const items = matchingItems(t);
-      if (!items.length) return;
-      const meta = typeMeta.find((m) => m.key === t);
-      groups.push({
-        label: meta.label,
-        icon: meta.icon,
-        items: items.map((item, i) => decorate(item, t, i)),
+  globalCatalog.value.forEach((subject) => {
+    const nameMatch = String(subject.name || '')
+      .toLowerCase()
+      .includes(q);
+    const codeMatch = String(subject.code || '')
+      .toLowerCase()
+      .includes(q);
+    const matchedBySubject = nameMatch || codeMatch;
+    const items = [];
+    RESOURCE_TYPES.forEach((type) => {
+      resourcesFor(subject.code)[type].forEach((item, i) => {
+        const titleMatch = String(item.title || '')
+          .toLowerCase()
+          .includes(q);
+        if (matchedBySubject || titleMatch) {
+          items.push(decorateGlobalItem(item, type, i, subject.key));
+        }
       });
     });
-    return withDriveFolders(groups);
-  }
-
-  const items = matchingItems(type);
-
-  if (type === 'notes') {
-    const byAuthor = new Map();
-    items.forEach((item, i) => {
-      const author = parseAuthor(item.title);
-      if (!byAuthor.has(author)) byAuthor.set(author, []);
-      byAuthor.get(author).push(decorate(item, type, i));
-    });
-    Array.from(byAuthor.entries())
-      .sort(([a], [b]) => (a === 'Unknown' ? 1 : b === 'Unknown' ? -1 : a.localeCompare(b)))
-      .forEach(([author, list]) => groups.push({ label: author, icon: User, items: list }));
-    return withDriveFolders(groups);
-  }
-
-  if (type === 'pyq') {
-    const byYear = new Map();
-    items.forEach((item, i) => {
-      const year = parsePYQYear(item.title);
-      if (!byYear.has(year)) byYear.set(year, []);
-      byYear.get(year).push(decorate(item, type, i));
-    });
-    Array.from(byYear.entries())
-      .sort(([a], [b]) => (a === 'Other' ? 1 : b === 'Other' ? -1 : Number(b) - Number(a)))
-      .forEach(([year, list]) => groups.push({ label: year, icon: Calendar, items: list }));
-    return withDriveFolders(groups);
-  }
-
-  if (items.length) {
-    groups.push({ label: '', items: items.map((item, i) => decorate(item, type, i)) });
-  }
-  return groups;
+    if (items.length) {
+      groups.push({
+        subject,
+        label: subject.code ? `${subject.code} · ${subject.name}` : subject.name,
+        match: matchedBySubject ? 'subject' : 'items',
+        items,
+      });
+    }
+  });
+  // Direct subject hits first (their whole resource set is shown), then
+  // subjects reached purely through matching item titles.
+  return groups.sort((a, b) => (a.match === b.match ? 0 : a.match === 'subject' ? -1 : 1));
 });
 
-/** Prepends the curated Drive folder for the current subject, where one exists. */
-function withDriveFolders(groups) {
-  const subject = currentSubject.value;
-  if (!subject) return groups;
-  const type = resourceType.value;
-  const items = [];
+const stepSummary = computed(() => ({
+  1: currentBranch.value ? `${currentBranch.value.short} · ${currentBranch.value.name}` : '',
+  2: currentLevel.value ? currentLevel.value.title : '',
+  3: subject.value ? subject.value.name : '',
+}));
 
-  if (type === 'all' || type === 'notes') {
-    let link = driveLinks.notes[subject.code];
-    if (!link && subject.subject?.toLowerCase().includes('analytics')) {
-      link = driveLinks.notes.BSMS2002;
-    }
-    if (link) {
-      items.push({
-        key: `drive-notes-${subject.code}`,
-        title: `Subject-wise notes — ${subject.subject}`,
-        link,
-        typeLabel: 'Drive folder',
-        cta: 'Open folder',
-      });
-    }
+// How far through the stepper we are — drives the gold progress line that sits
+// behind the pills (0% on step 1, 100% when the resources are shown).
+const progressPct = computed(() => ((step.value - 1) / (steps.length - 1)) * 100);
+
+// ── Subject list for the chosen branch + level ───────────────────────
+const currentLevelCore = computed(() =>
+  (subjectsFor(branch.value, level.value).core || []).map((s) => ({
+    ...s,
+    levelKey: level.value,
+    branchKey: branch.value,
+  }))
+);
+
+const currentLevelElectives = computed(
+  () => subjectsFor(branch.value, level.value).electives || []
+);
+
+function matchesQuery(subject, q) {
+  if (
+    String(subject.name || '')
+      .toLowerCase()
+      .includes(q)
+  )
+    return true;
+  if (
+    String(subject.code || '')
+      .toLowerCase()
+      .includes(q)
+  )
+    return true;
+  // Keep the old cross-section search: a subject whose notes / papers mention
+  // the query is a match too (Data Science has the resources to answer this).
+  return RESOURCE_TYPES.some((type) =>
+    resourcesFor(subject.code)[type].some((item) =>
+      String(item.title || '')
+        .toLowerCase()
+        .includes(q)
+    )
+  );
+}
+
+const visibleCore = computed(() =>
+  currentLevelCore.value.filter((s) => matchesQuery(s, query.value))
+);
+
+const visibleElectiveGroups = computed(() => {
+  const groups = currentLevelElectives.value;
+  if (!hasQuery.value) return groups;
+  return groups
+    .map((g) => ({
+      ...g,
+      subjects: (g.subjects || []).filter((s) => matchesQuery(s, query.value)),
+    }))
+    .filter((g) => g.subjects.length);
+});
+
+const totalVisibleSubjects = computed(
+  () =>
+    visibleCore.value.length +
+    visibleElectiveGroups.value.reduce((sum, g) => sum + g.subjects.length, 0)
+);
+
+const isSelected = (s) => Boolean(subject.value && subjectKey(s) === subjectKey(subject.value));
+
+// What a level actually holds for the chosen branch — e.g. "8 core subjects"
+// at Foundation, "5 core · 36 electives" at Degree. Counts come straight from
+// the curriculum so the cards never drift from the catalogue.
+function levelStat(levelKey) {
+  const { core, electives = [] } = subjectsFor(branch.value, levelKey);
+  const coreN = core.length;
+  const electiveN = electives.reduce(
+    (n, group) => n + (group.subjects ? group.subjects.length : 0),
+    0
+  );
+  const parts = [`${coreN} core subject${coreN === 1 ? '' : 's'}`];
+  if (electiveN) parts.push(`${electiveN} elective${electiveN === 1 ? '' : 's'}`);
+  return parts.join(' · ');
+}
+
+// ── Actions ──────────────────────────────────────────────────────────
+function chooseBranch(key) {
+  globalSearch.value = '';
+  if (branch.value === key) {
+    step.value = 2; // "confirm" path when returning from a later step
+    return;
   }
-
-  if (type === 'all' || type === 'pyq') {
-    const code = String(subject.code);
-    const isFoundation =
-      subject.levelKey === 'foundation' || (code.startsWith('BS') && code.includes('10'));
-    const isDiploma =
-      subject.levelKey === 'diploma' || (code.startsWith('BS') && code.includes('20'));
-    if (isFoundation) {
-      items.push({
-        key: `drive-pyq-${code}`,
-        title: 'Foundation end-term PYQs',
-        link: driveLinks.foundationPyq,
-        typeLabel: 'Drive folder',
-        cta: 'Open folder',
-      });
-    } else if (isDiploma) {
-      items.push({
-        key: `drive-pyq-${code}`,
-        title: 'Diploma end-term PYQs',
-        link: driveLinks.diplomaPyq,
-        typeLabel: 'Drive folder',
-        cta: 'Open folder',
-      });
-    }
-  }
-
-  if (!items.length) return groups;
-  return [{ label: 'Curated folders', icon: FolderOpen, featured: true, items }, ...groups];
-}
-
-// ── Actions ─────────────────────────────────────────────────────────────
-function shownItems(group) {
-  if (expandedGroups.value[group.label]) return group.items;
-  return group.items.slice(0, PREVIEW_COUNT);
-}
-
-function toggleGroup(label) {
-  expandedGroups.value = { ...expandedGroups.value, [label]: !expandedGroups.value[label] };
-}
-
-function selectFirstSubjectOf(level) {
-  const first = (scData[level] || [])[0];
-  currentSubjectCode.value = first ? first.code : null;
-}
-
-// Clicking the chosen level again clears it — the chip is the control and its
-// own undo, so there is no separate "Clear" button next to a set of three.
-function toggleLevel(level) {
-  if (currentLevel.value === level) {
-    currentLevel.value = null;
-    currentSubjectCode.value = null;
-  } else {
-    currentLevel.value = level;
-    resourceType.value = 'all';
-    expandedGroups.value = {};
-    selectFirstSubjectOf(level);
-  }
-}
-
-function selectSubject(subject) {
-  if (subject.levelKey !== currentLevel.value) currentLevel.value = subject.levelKey;
-  currentSubjectCode.value = subject.code;
+  branch.value = key;
+  level.value = null;
+  subject.value = null;
   resourceType.value = 'all';
   expandedGroups.value = {};
+  search.value = '';
+  step.value = 2;
+}
+
+function chooseLevel(key) {
+  globalSearch.value = '';
+  if (level.value === key) {
+    step.value = 3;
+    return;
+  }
+  level.value = key;
+  subject.value = null;
+  resourceType.value = 'all';
+  expandedGroups.value = {};
+  search.value = '';
+  step.value = 3;
+}
+
+function selectSubject(s) {
+  globalSearch.value = '';
+  if (subject.value && subjectKey(s) === subjectKey(subject.value)) {
+    step.value = 4;
+    return;
+  }
+  subject.value = { ...s, levelKey: level.value, branchKey: branch.value };
+  resourceType.value = 'all';
+  expandedGroups.value = {};
+  step.value = 4;
 }
 
 function setResourceType(type) {
@@ -564,52 +586,412 @@ function setResourceType(type) {
   expandedGroups.value = {};
 }
 
-function clearSubject() {
-  currentSubjectCode.value = null;
+function toggleGroup(label) {
+  expandedGroups.value = { ...expandedGroups.value, [label]: !expandedGroups.value[label] };
 }
 
-function clearAll() {
-  search.value = '';
-  currentLevel.value = null;
-  currentSubjectCode.value = null;
+function resetAll() {
+  branch.value = null;
+  level.value = null;
+  subject.value = null;
   resourceType.value = 'all';
+  expandedGroups.value = {};
+  search.value = '';
+  globalSearch.value = '';
+  step.value = 1;
 }
 
-// Keep the selection valid as the query narrows the grid under it, rather than
-// leaving a results panel describing a subject that is no longer listed.
-watch(visibleSubjects, (subjects) => {
-  if (!currentSubjectCode.value || !subjects.length) return;
-  if (!subjects.some((s) => s.code === currentSubjectCode.value)) {
-    currentSubjectCode.value = subjects[0].code;
-    currentLevel.value = currentLevel.value || subjects[0].levelKey;
+// A global result can hand the visitor straight into the stepper for that
+// subject (branch + level + subject set, resources shown).
+function openGlobalSubject(s) {
+  branch.value = s.branchKey;
+  level.value = s.levelKey;
+  subject.value = { ...s, levelKey: s.levelKey, branchKey: s.branchKey };
+  resourceType.value = 'all';
+  expandedGroups.value = {};
+  globalSearch.value = '';
+  step.value = 4;
+}
+
+// Moving between steps focuses the new step heading so a screen-reader hears
+// where the section moved. We scroll only the minimum needed — the trigger is
+// usually a click that already happened in view, so a full jump to `start`
+// would yank the page around. If the heading is already visible we stay put.
+const reducedMotion = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+const NAV_HEADROOM = 88; // fixed nav height + a breath of air
+
+function focusStep(headingId) {
+  const el = document.getElementById(headingId);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const viewportH = window.innerHeight || document.documentElement.clientHeight;
+  const visible = rect.top >= NAV_HEADROOM - 1 && rect.bottom <= viewportH - NAV_HEADROOM;
+  if (!visible) {
+    el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
   }
-});
+  el.setAttribute('tabindex', '-1');
+  el.focus({ preventScroll: true });
+}
+
+watch(step, (value) => nextTick(() => focusWhenReady(value, 0)));
+
+// The step panes swap through an out-in transition, so the new heading is not
+// in the DOM the moment `step` changes. Retry across a couple of animation
+// frames until the next pane has actually mounted, then focus it.
+function focusWhenReady(value, attempt) {
+  const headingId = value === 1 ? 'rb-head-1' : `rb-head-${value}`;
+  const el = document.getElementById(headingId);
+  if (el) {
+    focusStep(headingId);
+  } else if (attempt < 20) {
+    requestAnimationFrame(() => focusWhenReady(value, attempt + 1));
+  }
+}
 </script>
 
 <style scoped>
-/* ── 1. Search — the single most prominent control on the page ────── */
-/* The section's own top padding is trimmed here rather than in the global
-   .section rule: this is the one section on the site that must start as close
-   to the hero as it can, because it is what the visitor came for. */
+/* ── Section ────────────────────────────────────────────────────── */
+/* The browser is the first section under the hero, so its top padding is
+   kept tight (the global .section rule is trimmed here). */
 .section.tone-a {
-  padding-top: 3.5rem;
+  padding: 3.5rem 0 3rem;
 }
 
-.rb-search {
-  max-width: 640px;
-  margin: 0 auto 3rem;
+.rb-stage {
+  min-height: 320px;
 }
 
-.rb-search-label {
+/* ── Stepper ────────────────────────────────────────────────────── */
+.rb-stepper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.rb-steps-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The progress track rides the vertical centre of the step pills and fills
+   gold as the visitor advances. Pills are opaque so the line passes cleanly
+   underneath instead of bleeding through. */
+.rb-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  background: var(--border-subtle);
+  border-radius: 99px;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.rb-progress-fill {
   display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--color-gold), var(--accent));
+  border-radius: 99px;
+  transition: width 0.55s var(--ease-editorial);
+}
+
+.rb-steps {
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+}
+
+.rb-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   font-family: var(--font-body);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.45rem 0.9rem 0.45rem 0.5rem;
+  border: 1px solid var(--border-card);
+  border-radius: 99px;
+  background: var(--color-card);
+  color: var(--color-cream-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-selector) var(--ease-editorial),
+    color var(--duration-selector) var(--ease-editorial),
+    transform var(--duration-selector) var(--ease-editorial);
+}
+
+.rb-step:hover {
+  border-color: var(--border-card-hover);
+  color: var(--color-cream);
+  transform: translateY(-1px);
+}
+
+.rb-step:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.rb-step--locked {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.rb-step--active {
+  border-color: var(--color-gold);
+  /* Opaque fill (card colour) with a gold wash painted on top via an inset
+     shadow — the pill stays solid so the progress line passes underneath. */
+  background: var(--color-card);
+  box-shadow: inset 0 0 0 100px rgba(213, 166, 58, 0.09);
+  color: var(--color-gold-light);
   font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+}
+
+.rb-step--active::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  flex: none;
+}
+
+.rb-step--done {
+  cursor: pointer;
+}
+
+.rb-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border-card);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text3);
+}
+
+.rb-step--active .rb-step-num {
+  border-color: var(--color-gold);
+  color: var(--color-gold-light);
+}
+
+.rb-step-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+}
+
+.rb-step-value {
+  font-size: 0.66rem;
+  font-weight: 600;
   color: var(--accent);
-  margin-bottom: 0.7rem;
-  text-align: center;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rb-reset {
+  flex: none;
+  padding-top: 0.35rem;
+}
+
+/* ── Step headings ──────────────────────────────────────────────── */
+.rb-step-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+  outline: none;
+  scroll-margin-top: 5.5rem;
+  scroll-margin-bottom: 2rem;
+}
+
+.rb-step-sub {
+  font-size: 0.86rem;
+  color: var(--text2);
+  margin-bottom: 1.5rem;
+  max-width: 46rem;
+}
+
+/* ── Branch grid ────────────────────────────────────────────────── */
+.rb-branch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.rb-branch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  text-align: left;
+  padding: 1.15rem 1.2rem;
+  background: var(--color-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rad);
+  color: var(--text2);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-selector) var(--ease-editorial),
+    border-color var(--duration-selector) var(--ease-editorial),
+    color var(--duration-selector) var(--ease-editorial),
+    transform var(--duration-selector) var(--ease-editorial);
+}
+
+.rb-branch:hover {
+  border-color: var(--border-card-hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.rb-branch:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.rb-branch:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+.rb-branch--selected {
+  border-color: var(--color-gold);
+  background: rgba(213, 166, 58, 0.08);
+}
+
+.rb-branch-icon {
+  color: var(--accent);
+  margin-bottom: 0.35rem;
+}
+
+.rb-branch-code {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.rb-branch--selected .rb-branch-code {
+  color: var(--accent);
+}
+
+.rb-branch-name {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.rb-branch-count {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--text3);
+}
+
+/* ── Level grid ───────────────────────────────────────────────── */
+.rb-level-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* The three levels are a sibling of the four branches in the stepper, so
+   they deserve the same card language — icon, name, count, gold rule on
+   selection. */
+.rb-level {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  text-align: left;
+  padding: 1.15rem 1.2rem;
+  background: var(--color-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--rad);
+  color: var(--text2);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-selector) var(--ease-editorial),
+    border-color var(--duration-selector) var(--ease-editorial),
+    color var(--duration-selector) var(--ease-editorial),
+    transform var(--duration-selector) var(--ease-editorial);
+}
+
+.rb-level:hover {
+  border-color: var(--border-card-hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.rb-level:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.rb-level:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+.rb-level--selected {
+  border-color: var(--color-gold);
+  background: rgba(213, 166, 58, 0.08);
+}
+
+.rb-level-icon {
+  color: var(--accent);
+  margin-bottom: 0.35rem;
+}
+
+.rb-level-name {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.rb-level-count {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--text3);
+}
+
+.rb-level--selected .rb-level-count {
+  color: var(--accent);
+}
+
+/* ── Subject search (folded in here) ────────────────────────────── */
+.rb-subject-search {
+  max-width: 480px;
+  margin-bottom: 1.75rem;
 }
 
 .rb-search-field {
@@ -617,10 +999,10 @@ watch(visibleSubjects, (subjects) => {
 }
 
 .rb-search-input {
-  height: 3.4rem;
-  padding-left: 2.9rem;
+  height: 3rem;
+  padding-left: 2.8rem;
   padding-right: 2.6rem;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .rb-search-input::-webkit-search-cancel-button {
@@ -629,7 +1011,7 @@ watch(visibleSubjects, (subjects) => {
 
 .rb-search-icon {
   position: absolute;
-  left: 1.05rem;
+  left: 1rem;
   top: 50%;
   transform: translateY(-50%);
   color: var(--accent);
@@ -638,7 +1020,7 @@ watch(visibleSubjects, (subjects) => {
 
 .rb-search-clear {
   position: absolute;
-  right: 0.7rem;
+  right: 0.65rem;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
@@ -656,98 +1038,44 @@ watch(visibleSubjects, (subjects) => {
 }
 
 .rb-search-hint {
-  margin-top: 0.7rem;
-  text-align: center;
+  margin-top: 0.55rem;
   font-size: 0.76rem;
   color: var(--text3);
 }
 
-/* ── Blocks ───────────────────────────────────────────────────────── */
-.rb-block + .rb-block {
-  margin-top: 2.75rem;
-  padding-top: 2.75rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.rb-block-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.1rem;
-}
-
-.rb-block-title {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  margin-bottom: 1rem;
-}
-
-.rb-block-head .rb-block-title {
-  margin-bottom: 0;
-}
-
-.rb-block-meta {
-  font-size: 0.78rem;
-  color: var(--text2);
-  letter-spacing: 0.04em;
-}
-
-.rb-subject-desc {
-  margin-top: 0.35rem;
-  font-size: 0.85rem;
-  color: var(--text2);
-  max-width: 46rem;
-}
-
-.rb-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.rb-types {
-  margin-bottom: 1.75rem;
-}
-
-.rb-chip-count {
-  font-size: 0.7rem;
-  color: var(--text3);
-  font-variant-numeric: tabular-nums;
-}
-
-.sel[aria-pressed='true'] .rb-chip-count {
-  color: var(--accent);
-}
-
-.rb-note {
-  font-size: 0.88rem;
-  color: var(--text2);
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.rb-note--rest {
-  color: var(--text3);
-  max-width: 44rem;
-  line-height: 1.7;
-}
-
-/* ── 3. Subject grid ──────────────────────────────────────────────── */
+/* ── Subject grid ───────────────────────────────────────────────── */
 .rb-subject-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 0.75rem;
 }
 
+.rb-elective {
+  margin-top: 2rem;
+}
+
+.rb-elective-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rb-group-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
 /* Not a card: a dense, scannable row. Border and a 1px lift on hover, gold
-   rule and gold code on selection — the same selector language as .sel, laid
-   out as a grid because there are up to nineteen of them. */
+   rule and gold code on selection — the same selector language as .sel. */
 .rb-subject {
   position: relative;
   display: flex;
@@ -801,7 +1129,6 @@ watch(visibleSubjects, (subjects) => {
   color: var(--text);
 }
 
-/* The non-colour half of the selected state. */
 .rb-subject[aria-pressed='true']::before {
   background: var(--color-gold);
 }
@@ -824,157 +1151,26 @@ watch(visibleSubjects, (subjects) => {
   line-height: 1.4;
 }
 
-.rb-subject-level {
-  margin-top: 0.15rem;
-  font-size: 0.66rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text3);
+.rb-subject--elective .rb-subject-name {
+  color: var(--text2);
 }
 
-/* ── 5. Results ───────────────────────────────────────────────────── */
-.rb-results {
-  min-height: 320px;
-}
-
-.rb-group + .rb-group {
-  margin-top: 1.75rem;
-}
-
-.rb-group-label {
+.rb-note {
+  font-size: 0.88rem;
+  color: var(--text2);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text3);
-  padding-bottom: 0.6rem;
-  margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.rb-group--featured .rb-group-label {
-  color: var(--accent);
-}
-
-.rb-group-count {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
-}
-
-.rb-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.rb-more {
-  margin-top: 0.6rem;
-}
-
-/* This control's trailing glyph means "expand", not "go", so it rotates
-   instead of taking the global trailing-arrow slide. The .btn.rb-more prefix
-   is what outranks `.btn:hover svg:last-child`. */
-.btn.rb-more .rb-more-chevron {
-  transition: transform var(--duration-link) var(--ease-editorial);
-}
-
-.btn.rb-more:hover .rb-more-chevron {
-  transform: none;
-}
-
-.btn.rb-more .rb-more-chevron--up,
-.btn.rb-more:hover .rb-more-chevron--up {
-  transform: rotate(180deg);
-}
-
-/* A row, not a card — one hairline between entries and nothing nested. */
-.rb-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.25rem;
-  padding: 0.85rem 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-  border-radius: var(--rad);
-  color: var(--text);
-  text-decoration: none;
-  transition:
-    background-color var(--duration-card) var(--ease-editorial),
-    color var(--duration-card) var(--ease-editorial);
-}
-
-.rb-item:hover {
-  background: var(--color-card);
-  color: #fff;
-}
-
-.rb-item:focus-visible {
-  outline: 2px solid var(--color-gold);
-  outline-offset: 2px;
-}
-
-.rb-item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-}
-
-.rb-item-title {
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.rb-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
-.rb-item-type,
-.rb-item-badge {
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.rb-item-type {
+.rb-note--rest {
   color: var(--text3);
+  max-width: 44rem;
+  line-height: 1.7;
 }
 
-.rb-item-badge {
-  color: var(--accent);
-  border: 1px solid var(--border-subtle);
-  border-radius: 99px;
-  padding: 0.1rem 0.5rem;
-}
-
-.rb-item-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex: none;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--accent);
-}
-
-.rb-item-cta svg {
-  transition: transform var(--duration-link) var(--ease-editorial);
-}
-
-.rb-item:hover .rb-item-cta svg {
-  transform: translateX(4px);
-}
-
-/* ── Empty states ─────────────────────────────────────────────────── */
+/* ── Empty state (results placeholder) ──────────────────────────── */
 .rb-empty {
   display: flex;
   flex-direction: column;
@@ -996,41 +1192,169 @@ watch(visibleSubjects, (subjects) => {
   min-height: 200px;
 }
 
-/* ── Responsive ───────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .rb-search {
-    margin-bottom: 2.5rem;
+/* ── Step transitions & entrance choreography ──────────────────── */
+/* Step panes slide/fade as the visitor advances; `out-in` keeps the two from
+   ever overlapping and the min-height on .rb-stage holds the layout steady. */
+.rb-step-enter-active {
+  transition:
+    opacity 0.32s var(--ease-editorial),
+    transform 0.32s var(--ease-editorial);
+}
+
+.rb-step-leave-active {
+  transition:
+    opacity 0.18s var(--ease-editorial),
+    transform 0.18s var(--ease-editorial);
+}
+
+.rb-step-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.rb-step-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* Cards inside a fresh step rise in one after another. `both` keeps each card
+   in its hidden state until its delay starts, so the stagger reads as a wave
+   instead of a single pop. */
+@keyframes rb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rb-card-enter {
+  animation: rb-rise 0.5s var(--ease-editorial) both;
+}
+
+/* Hover: a warm gold glow and lift, and the card's icon wakes up. */
+.rb-branch:hover,
+.rb-level:hover {
+  border-color: rgba(213, 166, 58, 0.55);
+  box-shadow: 0 16px 34px -18px rgba(213, 166, 58, 0.4);
+  transform: translateY(-2px);
+}
+
+.rb-branch-icon,
+.rb-level-icon {
+  transition: transform var(--duration-selector) var(--ease-editorial);
+}
+
+.rb-branch:hover .rb-branch-icon,
+.rb-level:hover .rb-level-icon {
+  transform: scale(1.15) rotate(-6deg);
+}
+
+/* Selection pops the card once, then it settles — reads as "locked in" right
+   before the browser advances a step. Placed after .rb-card-enter so a card
+   that gets selected later breaks out of the (finished) rise and plays this. */
+@keyframes rb-pop {
+  0% {
+    transform: scale(0.98);
+  }
+  40% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.rb-branch--selected,
+.rb-level--selected,
+.rb-subject[aria-pressed='true'] {
+  animation: rb-pop 0.4s var(--ease-editorial);
+}
+
+/* A chevron slides in on subject rows to signal "this opens the resources". */
+.rb-subject {
+  padding-right: 2.2rem;
+}
+
+.rb-subject-go {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%) translateX(-5px);
+  opacity: 0;
+  color: var(--accent);
+  transition:
+    opacity var(--duration-selector) var(--ease-editorial),
+    transform var(--duration-selector) var(--ease-editorial);
+}
+
+.rb-subject:hover .rb-subject-go,
+.rb-subject[aria-pressed='true'] .rb-subject-go {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .rb-step-enter-active,
+  .rb-step-leave-active,
+  .rb-progress-fill,
+  .rb-subject-go {
+    transition: none;
   }
 
-  .rb-block + .rb-block {
-    margin-top: 2.25rem;
-    padding-top: 2.25rem;
+  .rb-card-enter,
+  .rb-branch--selected,
+  .rb-level--selected,
+  .rb-subject[aria-pressed='true'] {
+    animation: none;
+  }
+
+  .rb-branch:hover,
+  .rb-level:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .rb-branch:hover .rb-branch-icon,
+  .rb-level:hover .rb-level-icon {
+    transform: none;
+  }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .rb-stepper {
+    flex-direction: column;
+    margin-bottom: 2rem;
+  }
+
+  /* The pills stack vertically on small screens, so a horizontal track has no
+     single clean centre line anymore — drop it. */
+  .rb-progress {
+    display: none;
+  }
+
+  .rb-step-value {
+    max-width: 9rem;
   }
 
   .rb-subject-grid {
     grid-template-columns: 1fr;
   }
 
-  /* Stacked, not a scroller: three level chips and four type chips wrap into
-     two tidy rows at 375px, so a horizontal scroller would hide controls for
-     no gain. */
-  .rb-chips {
-    gap: 0.5rem;
+  .rb-branch-grid {
+    grid-template-columns: 1fr;
   }
 
-  .rb-item {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.9rem 0.5rem;
+  .rb-level-grid {
+    grid-template-columns: 1fr;
   }
 
-  .rb-item-cta {
-    font-size: 0.75rem;
-  }
-
-  .rb-results,
-  .rb-empty {
+  .rb-stage {
     min-height: 240px;
   }
 }
